@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPS Speed Graph v(t)</title>
+
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="favicon.png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #0f1115; color: #f4f4f4; padding: 16px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+      padding: 10px 0 4px 0;
+    }
+    .site-header-logo {
+      width: 240px;
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    .site-header-icon {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .site-header-text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .site-brand {
+      font-size: 26px;
+      font-weight: bold;
+      line-height: 1.1;
+    }
+    .site-tagline {
+      color: #a3a3a3;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    h1 { margin-top: 0; font-size: 28px; }
+    .card { background: #181b22; border: 1px solid #2a2f3a; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { border: none; border-radius: 12px; padding: 12px 16px; font-size: 16px; cursor: pointer; color: white; background: #394150; }
+    button:hover { opacity: 0.9; }
+    .start { background: #16a34a; }
+    .stop { background: #dc2626; }
+    .reset { background: #475569; }
+    .mode-btn.active { outline: 3px solid #facc15; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 12px; }
+    .stat { background: #10131a; border: 1px solid #2a2f3a; border-radius: 12px; padding: 12px; }
+    .stat .label { color: #9ca3af; font-size: 13px; }
+    .stat .value { font-size: 22px; font-weight: bold; margin-top: 4px; overflow-wrap: anywhere; }
+    canvas { background: white; border-radius: 12px; padding: 8px; }
+    .track-wrap { margin-top: 14px; background: #0b0d12; border: 1px solid #2a2f3a; border-radius: 14px; padding: 14px; }
+    .track { position: relative; height: 60px; background: linear-gradient(90deg, #222, #333); border-radius: 999px; overflow: hidden; border: 1px solid #454b57; }
+    .ball { position: absolute; top: 50%; left: 0px; width: 28px; height: 28px; background: #facc15; border-radius: 50%; transform: translateY(-50%); box-shadow: 0 0 20px rgba(250,204,21,0.8); }
+    input[type="range"] { width: 100%; margin-top: 12px; }
+    .hint { color: #a3a3a3; font-size: 14px; line-height: 1.4; }
+    .warning { color: #fbbf24; font-size: 14px; margin-top: 10px; }
+    .formula-box { margin-top: 12px; background: #10131a; border: 1px solid #2a2f3a; border-radius: 12px; padding: 12px; }
+    .formula { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; white-space: pre-wrap; word-break: break-word; overflow: visible; line-height: 1.55; }
+    .function-card { background: #10131a; border: 1px solid #2a2f3a; border-radius: 12px; padding: 14px; margin-top: 12px; }
+    .function-title { color: #9ca3af; font-size: 14px; margin-bottom: 8px; }
+    .function-scroll { max-height: none; overflow: visible; padding-right: 0; }
+
+    .function-table-wrap { margin-top: 12px; overflow-x: auto; }
+    .function-table { width: 100%; border-collapse: collapse; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; }
+    .function-table th, .function-table td { border: 1px solid #2a2f3a; padding: 8px 10px; text-align: left; vertical-align: top; }
+    .function-table th { background: #181b22; color: #f4f4f4; }
+    .function-table td { background: #0f1115; }
+    .points-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; }
+    .points-table th, .points-table td { border: 1px solid #2a2f3a; padding: 7px 9px; text-align: left; }
+    .points-table th { background: #181b22; }
+    .points-table td { background: #0f1115; }
+    .small-note { color: #a3a3a3; font-size: 13px; margin-top: 8px; }
+
+
+    .collapsible-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: #10131a;
+      border: 1px solid #2a2f3a;
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      user-select: none;
+      margin-top: 12px;
+    }
+    .collapsible-header:hover {
+      background: #151923;
+    }
+    .collapsible-title {
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .collapsible-subtitle {
+      color: #a3a3a3;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .collapsible-arrow {
+      font-size: 22px;
+      transition: transform 0.2s ease;
+    }
+    .collapsible-header.open .collapsible-arrow {
+      transform: rotate(180deg);
+    }
+    .collapsible-content {
+      display: none;
+      background: #10131a;
+      border: 1px solid #2a2f3a;
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      padding: 14px;
+      max-height: 520px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+    .collapsible-content.open {
+      display: block;
+    }
+
+    #manualPanelUnderGraph { display: none; margin-top: 16px; }
+    @media (max-width: 600px) {
+      h1 { font-size: 22px; }
+      button { width: 100%; }
+      .row { flex-direction: column; align-items: stretch; }
+      .stat .value { font-size: 19px; }
+      .site-header { margin-bottom: 14px; }
+      .site-header-logo { width: 180px; }
+      .site-brand { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="site-header">
+      <div class="site-header-text">
+        <div class="site-brand">Speed Function</div>
+        <div class="site-tagline">Visualize motion through speed and time</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mode</h2>
+      <div class="row">
+        <button id="gpsModeBtn" class="mode-btn active">GPS Mode</button>
+        <button id="manualModeBtn" class="mode-btn">Manual Test Mode</button>
+      </div>
+      <p class="hint">
+        GPS Mode reads real movement from phone GPS.
+        Manual Test Mode lets you create the speed function yourself with a slider.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Controls</h2>
+      <div class="row">
+        <button id="startBtn" class="start">Start</button>
+        <button id="stopBtn" class="stop">Stop</button>
+        <button id="resetBtn" class="reset">Reset</button>
+        <button id="downloadBtn" class="reset">Download TXT</button>
+      </div>
+      <div id="message" class="warning"></div>
+    </div>
+
+    <div class="card">
+      <h2>Live Data</h2>
+      <div class="stats">
+        <div class="stat"><div class="label">Time</div><div class="value"><span id="time">0</span> s</div></div>
+        <div class="stat"><div class="label">Current speed</div><div class="value"><span id="speedKmh">0.00</span> km/h</div></div>
+        <div class="stat"><div class="label">Current speed</div><div class="value"><span id="speedMs">0.00</span> m/s</div></div>
+        <div class="stat"><div class="label">Distance</div><div class="value"><span id="distance">0.00</span> m</div></div>
+        <div class="stat"><div class="label">Trip average speed</div><div class="value"><span id="avgSpeedKmh">0.00</span> km/h</div></div>
+        <div class="stat"><div class="label">Trip average speed</div><div class="value"><span id="avgSpeedMs">0.00</span> m/s</div></div>
+      </div>
+
+      <div class="formula-box">
+        <h3>Graph function</h3>
+        <p class="hint">
+          This function describes the exact line drawn on the graph. For every recorded second t, v(t) gives the same speed value as the graph.
+        </p>
+
+        <div class="collapsible-header" id="graphFunctionHeader">
+          <div>
+            <div class="collapsible-title">Piecewise linear function</div>
+            <div class="collapsible-subtitle">Tap to open the full table of intervals and recorded points.</div>
+          </div>
+          <div class="collapsible-arrow">⌄</div>
+        </div>
+
+        <div class="collapsible-content" id="graphFunctionContent">
+          <div id="graphFunctionText">No data yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Graph: v(t)</h2>
+      <canvas id="speedChart"></canvas>
+
+      <div id="manualPanelUnderGraph">
+        <h3>Manual Speed Slider</h3>
+        <label for="speedSlider">Speed now: <b><span id="sliderValue">0</span> km/h</b></label>
+        <input id="speedSlider" type="range" min="0" max="100" value="0" step="1" />
+        <p class="hint">
+          Move this while the timer is running. The graph changes every second, and the ball below moves according to accumulated distance.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Distance Visualization</h2>
+      <p class="hint">The ball shows accumulated distance. Higher speed makes it move faster.</p>
+      <div class="track-wrap">
+        <div class="track" id="track"><div class="ball" id="ball"></div></div>
+      </div>
+    </div>
+    <footer style="margin-top: 28px; padding: 18px 0 8px 0; color: #9ca3af; font-size: 14px; text-align: center; border-top: 1px solid #2a2f3a;">
+      © 2026 Saduyev Daniyal — Speed Function
+    </footer>
+
+  </div>
+
+  <script>
+    let mode = "gps";
+    let running = false;
+    let watchId = null;
+    let timerId = null;
+    let startTime = null;
+    let lastTickTime = null;
+    let lastGpsPosition = null;
+    let totalDistance = 0;
+    let currentSpeedMs = 0;
+    let timeData = [];
+    let speedData = [];
+
+    const gpsModeBtn = document.getElementById("gpsModeBtn");
+    const manualModeBtn = document.getElementById("manualModeBtn");
+    const manualPanelUnderGraph = document.getElementById("manualPanelUnderGraph");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const speedSlider = document.getElementById("speedSlider");
+    const sliderValue = document.getElementById("sliderValue");
+    const timeEl = document.getElementById("time");
+    const speedKmhEl = document.getElementById("speedKmh");
+    const speedMsEl = document.getElementById("speedMs");
+    const avgSpeedKmhEl = document.getElementById("avgSpeedKmh");
+    const avgSpeedMsEl = document.getElementById("avgSpeedMs");
+    const distanceEl = document.getElementById("distance");
+    const graphFunctionText = document.getElementById("graphFunctionText");
+    const graphFunctionHeader = document.getElementById("graphFunctionHeader");
+    const graphFunctionContent = document.getElementById("graphFunctionContent");
+    const messageEl = document.getElementById("message");
+    const ball = document.getElementById("ball");
+    const track = document.getElementById("track");
+
+    const chart = new Chart(document.getElementById("speedChart").getContext("2d"), {
+      type: "line",
+      data: {
+        labels: timeData,
+        datasets: [{
+          label: "v(t), speed in km/h",
+          data: speedData,
+          borderWidth: 2,
+          tension: 0,
+          pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        scales: {
+          x: { title: { display: true, text: "t, seconds" } },
+          y: { beginAtZero: true, suggestedMax: 100, title: { display: true, text: "v, km/h" } }
+        }
+      }
+    });
+
+    function toggleGraphFunction() {
+      graphFunctionHeader.classList.toggle("open");
+      graphFunctionContent.classList.toggle("open");
+    }
+
+    function setMode(newMode) {
+      if (running) stopTracking();
+      mode = newMode;
+      gpsModeBtn.classList.toggle("active", mode === "gps");
+      manualModeBtn.classList.toggle("active", mode === "manual");
+      manualPanelUnderGraph.style.display = mode === "manual" ? "block" : "none";
+      messageEl.textContent = mode === "gps"
+        ? "GPS Mode: best tested on a phone with location permission."
+        : "Manual Test Mode: slider is under the graph.";
+    }
+
+    function resetData() {
+      stopTracking();
+      startTime = null;
+      lastTickTime = null;
+      lastGpsPosition = null;
+      totalDistance = 0;
+      currentSpeedMs = 0;
+      timeData.length = 0;
+      speedData.length = 0;
+      updateDisplay(0, 0, 0);
+      updateGraphFunction();
+      updateBall();
+      chart.update();
+    }
+
+    function startTracking() {
+      if (running) return;
+      running = true;
+      startTime = Date.now();
+      lastTickTime = Date.now();
+      messageEl.textContent = "";
+      if (mode === "gps") startGpsTracking();
+      else startManualTracking();
+    }
+
+    function stopTracking() {
+      running = false;
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    }
+
+    function startManualTracking() {
+      timerId = setInterval(() => {
+        const now = Date.now();
+        const t = Math.floor((now - startTime) / 1000);
+        const dt = (now - lastTickTime) / 1000;
+        const speedKmh = Number(speedSlider.value);
+        currentSpeedMs = speedKmh / 3.6;
+        totalDistance += currentSpeedMs * dt;
+        lastTickTime = now;
+        addDataPoint(t, speedKmh);
+        updateDisplay(t, currentSpeedMs, totalDistance);
+        updateGraphFunction();
+        updateBall();
+      }, 1000);
+    }
+
+    function startGpsTracking() {
+      if (!navigator.geolocation) {
+        messageEl.textContent = "Geolocation is not supported on this device.";
+        running = false;
+        return;
+      }
+
+      watchId = navigator.geolocation.watchPosition(
+        position => {
+          const now = Date.now();
+          const t = Math.floor((now - startTime) / 1000);
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          let speedMs = 0;
+
+          if (position.coords.speed !== null && position.coords.speed >= 0) {
+            speedMs = position.coords.speed;
+          } else if (lastGpsPosition !== null) {
+            const dt = (now - lastGpsPosition.time) / 1000;
+            const distance = haversineDistance(lastGpsPosition.lat, lastGpsPosition.lon, lat, lon);
+            if (dt > 0) {
+              speedMs = distance / dt;
+              totalDistance += distance;
+            }
+          }
+
+          if (position.coords.speed !== null && position.coords.speed >= 0) {
+            const dt = lastTickTime ? (now - lastTickTime) / 1000 : 0;
+            if (dt > 0) totalDistance += speedMs * dt;
+          }
+
+          lastTickTime = now;
+          lastGpsPosition = { lat, lon, time: now };
+          currentSpeedMs = speedMs;
+
+          const speedKmh = speedMs * 3.6;
+          addDataPoint(t, speedKmh);
+          updateDisplay(t, speedMs, totalDistance);
+          updateGraphFunction();
+          updateBall();
+        },
+        error => {
+          if (error.code === 1) messageEl.textContent = "Location permission denied. Enable location access in your browser settings.";
+          else if (error.code === 2) messageEl.textContent = "Position unavailable. Try going outside or enabling Wi-Fi/GPS.";
+          else if (error.code === 3) messageEl.textContent = "GPS timeout. Try again, or test on a phone outdoors.";
+          else messageEl.textContent = "GPS error: " + error.message;
+        },
+        { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 }
+      );
+    }
+
+    function addDataPoint(t, speedKmh) {
+      timeData.push(t);
+      speedData.push(Number(speedKmh.toFixed(2)));
+      if (timeData.length > 300) {
+        timeData.shift();
+        speedData.shift();
+      }
+      chart.update();
+    }
+
+    function updateDisplay(t, speedMs, distance) {
+      timeEl.textContent = fmtNumber(t, 0);
+      speedMsEl.textContent = fmtNumber(speedMs, 2);
+      speedKmhEl.textContent = fmtNumber(speedMs * 3.6, 2);
+      distanceEl.textContent = fmtNumber(distance, 2);
+
+      const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0;
+      const avgMs = elapsedSeconds > 0 ? distance / elapsedSeconds : 0;
+      avgSpeedMsEl.textContent = fmtNumber(avgMs, 2);
+      avgSpeedKmhEl.textContent = fmtNumber(avgMs * 3.6, 2);
+    }
+
+    function fmtNumber(x, digits = 2) {
+      const rounded = Number(x.toFixed(digits));
+
+      if (Math.abs(rounded - Math.round(rounded)) < 0.000001) {
+        return String(Math.round(rounded));
+      }
+
+      return String(rounded);
+    }
+
+    function padRight(text, length) {
+      text = String(text);
+      return text + " ".repeat(Math.max(0, length - text.length));
+    }
+
+    function makeSegmentFormula(t1, t2, v1, v2) {
+      const dt = t2 - t1;
+      if (dt === 0) return null;
+
+      const slope = (v2 - v1) / dt;
+
+      if (Math.abs(slope) < 0.000001) {
+        return fmtNumber(v1);
+      }
+
+      const slopeText = fmtNumber(slope, 3);
+      const v1Abs = fmtNumber(Math.abs(v1), 2);
+
+      if (Math.abs(v1) < 0.000001) {
+        return `${slopeText}(t - ${fmtNumber(t1)})`;
+      }
+
+      const sign = v1 >= 0 ? "+" : "-";
+      return `${slopeText}(t - ${fmtNumber(t1)}) ${sign} ${v1Abs}`;
+    }
+
+    function getGraphFunctionText() {
+      if (speedData.length === 0) {
+        return "v(t) = no data yet";
+      }
+
+      if (speedData.length === 1) {
+        return `v(${fmtNumber(timeData[0], 0)}) = ${fmtNumber(speedData[0])} km/h`;
+      }
+
+      const lines = [];
+      lines.push("Piecewise linear function v(t):");
+      lines.push("");
+
+      for (let i = 0; i < speedData.length - 1; i++) {
+        const t1 = timeData[i];
+        const t2 = timeData[i + 1];
+        const v1 = speedData[i];
+        const v2 = speedData[i + 1];
+        const dt = t2 - t1;
+
+        if (dt === 0) continue;
+
+        const slope = (v2 - v1) / dt;
+        let formula;
+
+        if (Math.abs(slope) < 0.000001) {
+          formula = `${fmtNumber(v1)}`;
+        } else {
+          const slopeText = fmtNumber(slope, 3);
+
+          if (Math.abs(v1) < 0.000001) {
+            formula = `${slopeText}(t - ${fmtNumber(t1, 0)})`;
+          } else {
+            const sign = v1 >= 0 ? "+" : "-";
+            formula = `${slopeText}(t - ${fmtNumber(t1, 0)}) ${sign} ${fmtNumber(Math.abs(v1))}`;
+          }
+        }
+
+        lines.push(`${i + 1}. ${formula}, for ${fmtNumber(t1, 0)} ≤ t ≤ ${fmtNumber(t2, 0)}`);
+      }
+
+      lines.push("");
+      lines.push("Recorded points:");
+      for (let i = 0; i < timeData.length; i++) {
+        lines.push(`t=${fmtNumber(timeData[i], 0)} s, v=${fmtNumber(speedData[i])} km/h`);
+      }
+
+      return lines.join("\n");
+    }
+
+    function buildFunctionTableHtml() {
+      if (speedData.length === 0) {
+        return "No data yet";
+      }
+
+      if (speedData.length === 1) {
+        return `
+          <div class="formula">v(${fmtNumber(timeData[0], 0)}) = ${fmtNumber(speedData[0])} km/h</div>
+        `;
+      }
+
+      let html = "";
+
+      html += `
+        <div class="function-table-wrap">
+          <table class="function-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time interval</th>
+                <th>Function on this interval</th>
+                <th>Start → End speed</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      for (let i = 0; i < speedData.length - 1; i++) {
+        const t1 = timeData[i];
+        const t2 = timeData[i + 1];
+        const v1 = speedData[i];
+        const v2 = speedData[i + 1];
+        const dt = t2 - t1;
+
+        if (dt === 0) continue;
+
+        const slope = (v2 - v1) / dt;
+        let formula;
+
+        if (Math.abs(slope) < 0.000001) {
+          formula = `v(t) = ${fmtNumber(v1)}`;
+        } else {
+          const slopeText = fmtNumber(slope, 3);
+
+          if (Math.abs(v1) < 0.000001) {
+            formula = `v(t) = ${slopeText}(t - ${fmtNumber(t1, 0)})`;
+          } else {
+            const sign = v1 >= 0 ? "+" : "-";
+            formula = `v(t) = ${slopeText}(t - ${fmtNumber(t1, 0)}) ${sign} ${fmtNumber(Math.abs(v1))}`;
+          }
+        }
+
+        html += `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${fmtNumber(t1, 0)} ≤ t ≤ ${fmtNumber(t2, 0)}</td>
+            <td>${formula}</td>
+            <td>${fmtNumber(v1)} → ${fmtNumber(v2)} km/h</td>
+          </tr>
+        `;
+      }
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      html += `
+        <div class="small-note">Recorded points</div>
+        <div class="function-table-wrap">
+          <table class="points-table">
+            <thead>
+              <tr>
+                <th>t, seconds</th>
+                <th>v(t), km/h</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      for (let i = 0; i < timeData.length; i++) {
+        html += `
+          <tr>
+            <td>${fmtNumber(timeData[i], 0)}</td>
+            <td>${fmtNumber(speedData[i])}</td>
+          </tr>
+        `;
+      }
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function updateGraphFunction() {
+      graphFunctionText.innerHTML = buildFunctionTableHtml();
+    }
+
+    function downloadTxtData() {
+      const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0;
+      const avgMs = elapsedSeconds > 0 ? totalDistance / elapsedSeconds : 0;
+
+      const lines = [];
+      lines.push("Speed Function v(t) Data");
+      lines.push("========================");
+      lines.push("");
+      lines.push(`Mode: ${mode === "gps" ? "GPS Mode" : "Manual Test Mode"}`);
+      lines.push(`Time: ${fmtNumber(elapsedSeconds, 0)} s`);
+      lines.push(`Current speed: ${fmtNumber(currentSpeedMs * 3.6)} km/h`);
+      lines.push(`Current speed: ${fmtNumber(currentSpeedMs)} m/s`);
+      lines.push(`Distance: ${fmtNumber(totalDistance)} m`);
+      lines.push(`Trip average speed: ${fmtNumber(avgMs * 3.6)} km/h`);
+      lines.push(`Trip average speed: ${fmtNumber(avgMs)} m/s`);
+      lines.push("");
+      lines.push("Graph function:");
+      lines.push(getGraphFunctionText());
+      lines.push("");
+      lines.push("Table:");
+      lines.push("t_seconds\tspeed_km_h");
+
+      for (let i = 0; i < timeData.length; i++) {
+        lines.push(`${fmtNumber(timeData[i], 0)}\t${fmtNumber(speedData[i])}`);
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "speed_function_data.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    }
+
+    function updateBall() {
+      const trackWidth = track.clientWidth;
+      const ballWidth = ball.clientWidth;
+      const maxDistanceForFullTrack = 1000;
+      const progress = (totalDistance % maxDistanceForFullTrack) / maxDistanceForFullTrack;
+      const x = progress * (trackWidth - ballWidth);
+      ball.style.left = x + "px";
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = deg => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    graphFunctionHeader.onclick = toggleGraphFunction;
+    gpsModeBtn.onclick = () => setMode("gps");
+    manualModeBtn.onclick = () => setMode("manual");
+    startBtn.onclick = startTracking;
+    stopBtn.onclick = stopTracking;
+    resetBtn.onclick = resetData;
+    downloadBtn.onclick = downloadTxtData;
+    speedSlider.oninput = () => { sliderValue.textContent = speedSlider.value; };
+
+    setMode("gps");
+    updateDisplay(0, 0, 0);
+    updateGraphFunction();
+    updateBall();
+    window.addEventListener("resize", updateBall);
+  </script>
+</body>
+</html>
